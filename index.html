@@ -175,20 +175,19 @@
 // ====== CẤU HÌNH: dán URL Web App của Google Apps Script vào đây ======
 const GAS_URL = "https://script.google.com/macros/s/AKfycbzfyRfEmQ6xwQ_YUaRidUYRrdaa87FEkYRlEo7QRounz2MEFBCWwcNmuTTAPYMmFdLw/exec";
 
+// options: các lựa chọn hiện trong ô chọn; món không có options thì không hiện ô chọn
 const MENU = [
-  { id:'caphesua', name:'Cà phê sữa', price:12000, custom:true },
-  { id:'caphaden', name:'Cà Phê Đen', price:10000, custom:true },
-  { id:'nuocngot', name:'Nước Ngọt', price:10000, custom:false },
-  { id:'duanho', name:'Dừa Nhỏ', price:10000, custom:false },
-  { id:'dualon', name:'Dừa Lớn', price:15000, custom:false },
-  { id:'bia', name:'Bia', price:15000, custom:false },
-  { id:'traduong', name:'Trà đường', price:6000, custom:false },
+  { id:'caphesua', name:'Cà phê sữa', price:12000, options:['Bình thường','Ít sữa','Nhiều sữa'] },
+  { id:'caphaden', name:'Cà Phê Đen', price:10000, options:['Bình thường','Ít cà phê','Nhiều cà phê'] },
+  { id:'nuocngot', name:'Nước Ngọt', price:10000 },
+  { id:'duanho', name:'Dừa Nhỏ', price:10000 },
+  { id:'dualon', name:'Dừa Lớn', price:15000 },
+  { id:'traduong', name:'Trà đường', price:6000 },
 ];
-const SUGAR_LEVELS = ['100% đường','70% đường','50% đường','30% đường','Không đường'];
-const ICE_LEVELS = ['100% đá','70% đá','50% đá','30% đá','Không đá','Nóng'];
 
-const state = {}; // id -> {qty, sugar, ice}
-MENU.forEach(d => state[d.id] = { qty:0, sugar:SUGAR_LEVELS[0], ice:ICE_LEVELS[0] });
+const state = {}; // id -> {qty, option}
+const freshState = d => ({ qty:0, option: d.options ? d.options[0] : '' });
+MENU.forEach(d => state[d.id] = freshState(d));
 
 const menuEl = document.getElementById('menu');
 function money(n){ return n.toLocaleString('vi-VN') + 'đ'; }
@@ -207,12 +206,9 @@ function renderMenu(){
         <div class="item-total">${s.qty > 0 ? money(lineTotal) : ''}</div>
       </div>
       <div class="item-controls">
-        ${d.custom ? `
-        <select class="mini" data-id="${d.id}" data-kind="sugar">
-          ${SUGAR_LEVELS.map(l => `<option ${l===s.sugar?'selected':''}>${l}</option>`).join('')}
-        </select>
-        <select class="mini" data-id="${d.id}" data-kind="ice">
-          ${ICE_LEVELS.map(l => `<option ${l===s.ice?'selected':''}>${l}</option>`).join('')}
+        ${d.options ? `
+        <select class="mini" data-id="${d.id}" data-kind="option">
+          ${d.options.map(l => `<option ${l===s.option?'selected':''}>${l}</option>`).join('')}
         </select>` : ''}
         <div class="qty">
           <button data-id="${d.id}" data-act="minus" aria-label="Giảm">−</button>
@@ -268,7 +264,7 @@ document.getElementById('sendBtn').addEventListener('click', async () => {
   const total = picked.reduce((sum,d) => sum + d.price * state[d.id].qty, 0);
   const itemsText = picked.map(d => {
     const s = state[d.id];
-    return d.custom ? `${d.name} x${s.qty} (${s.sugar}, ${s.ice})` : `${d.name} x${s.qty}`;
+    return d.options ? `${d.name} x${s.qty} (${s.option})` : `${d.name} x${s.qty}`;
   }).join(' | ');
 
   const payload = {
@@ -291,7 +287,7 @@ document.getElementById('sendBtn').addEventListener('click', async () => {
       body: JSON.stringify(payload)
     });
     showToast('Đã gửi đơn — cảm ơn bạn!');
-    MENU.forEach(d => state[d.id] = { qty:0, sugar:SUGAR_LEVELS[0], ice:ICE_LEVELS[0] });
+    MENU.forEach(d => state[d.id] = freshState(d));
     document.getElementById('note').value = '';
     renderMenu(); renderCart();
   }catch(err){
