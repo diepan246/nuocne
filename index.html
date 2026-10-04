@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Đặt Đồ Uống</title>
+<title>Giờ Nghỉ — Đặt Đồ Uống</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -128,6 +128,21 @@
   .toast.show{opacity:1;transform:translate(-50%,0);}
   .toast.error{background:var(--burnt-dark);}
 
+  .field-hint{font-size:12px;color:var(--caramel);margin:6px 0 0;}
+  .code-input{letter-spacing:3px;font-weight:700;font-size:16px;text-align:center;max-width:230px;text-transform:none;}
+
+  .code-overlay{
+    position:fixed;inset:0;background:rgba(43,29,20,0.55);
+    display:flex;align-items:center;justify-content:center;padding:24px;
+    z-index:30;opacity:0;pointer-events:none;transition:opacity .2s ease;
+  }
+  .code-overlay.show{opacity:1;pointer-events:auto;}
+  .code-card{background:var(--paper);border-radius:18px;padding:26px 22px;max-width:340px;width:100%;text-align:center;box-shadow:0 12px 30px rgba(0,0,0,0.25);}
+  .code-card-title{font-family:'Fraunces',serif;font-size:19px;font-weight:600;margin:0 0 10px;color:var(--espresso);}
+  .code-card-desc{font-size:13.5px;color:var(--caramel);line-height:1.5;margin:0 0 14px;}
+  .code-card-code{font-family:'Fraunces',serif;font-size:27px;font-weight:700;letter-spacing:3px;color:var(--burnt);margin:0 0 18px;word-break:break-all;}
+  .code-card-btn{width:100%;border:none;border-radius:10px;background:var(--burnt);color:#fff;padding:12px;font-size:15px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;}
+
   .link-btn{background:none;border:none;color:var(--burnt);font-weight:600;font-size:13.5px;padding:0;margin:-10px 0 22px;cursor:pointer;text-decoration:underline;display:block;}
   .orders-empty{font-size:13.5px;color:var(--caramel);padding:4px 0 8px;}
   .order-card{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:10px;box-shadow:var(--shadow);}
@@ -155,15 +170,21 @@
 <body>
 <div class="wrap">
   <header>
-    <p class="eyebrow">
+    <p class="eyebrow">Giờ nghỉ</p>
     <h1>Đặt đồ uống chung</h1>
-    <p class="tagline">
+    <p class="tagline">AN BAO (bao cao su)</p>
     <p>Chọn món, ghi tên bạn, rồi gửi vào đơn chung nhé.</p>
   </header>
 
   <div class="field">
     <label for="name">Tên người đặt</label>
     <input id="name" type="text" placeholder="VD: Lan, Minh...">
+  </div>
+
+  <div class="field">
+    <label for="code">Mã khách hàng (7 ký tự)</label>
+    <input id="code" class="code-input" type="text" autocapitalize="off" autocorrect="off" maxlength="7" placeholder="VD: 2026Tr#">
+    <p class="field-hint">Tự đặt mã riêng gồm 4 số, 1 chữ HOA, 1 chữ thường, 1 ký tự đặc biệt (@ # $ ! ...) — dùng để xem lại đơn sau này, người khác sẽ không xem được đơn của bạn nếu không có mã này.</p>
   </div>
 
   <button type="button" class="link-btn" id="viewOrdersBtn">Xem đơn đã đặt của tôi</button>
@@ -187,6 +208,15 @@
 </div>
 
 <div class="toast" id="toast"></div>
+
+<div class="code-overlay" id="codeOverlay">
+  <div class="code-card">
+    <p class="code-card-title">Đã gửi đơn thành công!</p>
+    <p class="code-card-desc">Hãy nhớ mã khách hàng của bạn để xem lại đơn đặt hàng sau này:</p>
+    <div class="code-card-code" id="codeOverlayCode">••••</div>
+    <button class="code-card-btn" id="codeOverlayClose">Đã ghi nhớ</button>
+  </div>
+</div>
 
 <script>
 // ====== CẤU HÌNH: dán URL Web App của Google Apps Script vào đây ======
@@ -274,6 +304,9 @@ document.getElementById('sendBtn').addEventListener('click', async () => {
   const name = document.getElementById('name').value.trim();
   if(!name){ showToast('Bạn nhập tên trước đã nhé', true); document.getElementById('name').focus(); return; }
 
+  const code = document.getElementById('code').value.trim();
+  if(!isValidCode(code)){ showToast('Mã khách hàng cần đúng 7 ký tự: 4 số, 1 chữ HOA, 1 chữ thường, 1 ký tự đặc biệt', true); document.getElementById('code').focus(); return; }
+
   const picked = MENU.filter(d => state[d.id].qty > 0);
   const note = document.getElementById('note').value.trim();
   if(picked.length === 0 && !note){ showToast('Chọn món hoặc nhập ghi chú nhé', true); return; }
@@ -286,6 +319,7 @@ document.getElementById('sendBtn').addEventListener('click', async () => {
 
   const payload = {
     ten: name,
+    maKH: code,
     mon: itemsText || '(Không chọn món)',
     ghiChu: note,
     tongTien: total,
@@ -303,7 +337,8 @@ document.getElementById('sendBtn').addEventListener('click', async () => {
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(payload)
     });
-    showToast('Đã gửi đơn — cảm ơn bạn!');
+    document.getElementById('codeOverlayCode').textContent = code;
+    document.getElementById('codeOverlay').classList.add('show');
     MENU.forEach(d => state[d.id] = freshState(d));
     document.getElementById('note').value = '';
     renderMenu(); renderCart();
@@ -317,6 +352,18 @@ document.getElementById('sendBtn').addEventListener('click', async () => {
 });
 
 document.getElementById('note').addEventListener('input', renderCart);
+document.getElementById('code').addEventListener('input', e => {
+  e.target.value = e.target.value.replace(/\s/g, '').slice(0, 7);
+});
+
+function isValidCode(code){
+  if(code.length !== 7) return false;
+  const digits = (code.match(/[0-9]/g) || []).length;
+  const upper = (code.match(/[A-Z]/g) || []).length;
+  const lower = (code.match(/[a-z]/g) || []).length;
+  const special = (code.match(/[^A-Za-z0-9]/g) || []).length;
+  return digits === 4 && upper === 1 && lower === 1 && special === 1;
+}
 
 function escapeHtml(str){
   return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -325,14 +372,16 @@ function escapeHtml(str){
 async function loadOrders(){
   const name = document.getElementById('name').value.trim();
   if(!name){ showToast('Bạn nhập tên trước đã nhé', true); document.getElementById('name').focus(); return; }
+  const code = document.getElementById('code').value.trim();
+  if(!isValidCode(code)){ showToast('Nhập đúng mã khách hàng 7 ký tự để xem đơn của bạn', true); document.getElementById('code').focus(); return; }
   const wrap = document.getElementById('ordersWrap');
   wrap.innerHTML = '<p class="orders-empty">Đang tải đơn...</p>';
   try{
-    const res = await fetch(GAS_URL + '?ten=' + encodeURIComponent(name));
+    const res = await fetch(GAS_URL + '?ten=' + encodeURIComponent(name) + '&ma=' + encodeURIComponent(code));
     const data = await res.json();
     const orders = data.orders || [];
     if(orders.length === 0){
-      wrap.innerHTML = '<p class="orders-empty">Chưa có đơn nào cho tên này.</p>';
+      wrap.innerHTML = '<p class="orders-empty">Không khớp tên và mã khách hàng này.</p>';
       return;
     }
     wrap.innerHTML = orders.map(o => `
@@ -355,6 +404,9 @@ async function loadOrders(){
 }
 
 document.getElementById('viewOrdersBtn').addEventListener('click', loadOrders);
+document.getElementById('codeOverlayClose').addEventListener('click', () => {
+  document.getElementById('codeOverlay').classList.remove('show');
+});
 
 renderMenu();
 renderCart();
